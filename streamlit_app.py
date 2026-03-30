@@ -51,7 +51,7 @@ with st.sidebar:
     st.header("Configuration")
     app_mode = st.radio("Select Mode:", ("Interactive Mode", "JSON Mode"))
     model_choice = st.radio("Select Model Engine:", ("High Speed (Naive Bayes)", "High Accuracy (DistilBART)", "High Accuracy (BART-Large)"))
-    labels_input = st.text_input("Analysis Labels", "self-confident, uncertain, growth-oriented, analytical, creative, skeptical, risk-averse")
+    labels_input = st.text_input("Analysis Labels", "self-confident, uncertain, growth-oriented, analytical, creative, skeptical, risk-averse, sad, happy")
     candidate_labels = [label.strip() for label in labels_input.split(",")]
     threshold = st.slider("Min Confidence Score", 0.0, 1.0, 0.2)
 
