@@ -8,10 +8,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 
-# --- Page Configuration ---
 st.set_page_config(page_title="Identity Evaluation Suite", layout="wide")
 
-# --- Model 1: High-Speed (Linear) ---
+# --- Model Loaders ---
 @st.cache_resource
 def load_fast_model():
     data = [
@@ -28,107 +27,84 @@ def load_fast_model():
     model.fit(texts, labels)
     return model
 
-# --- Model 2 & 3: High-Accuracy (Transformers) ---
 @st.cache_resource
 def load_transformer_model(model_name):
     return pipeline("zero-shot-classification", model=model_name)
 
-# --- UI Setup ---
-st.title("👤 Identity & Belief Evaluation Suite")
+# --- Logic Helper ---
+def run_inference(text, engine_choice, labels, threshold):
+    if engine_choice == "High Speed (Naive Bayes)":
+        model = load_fast_model()
+        probs = model.predict_proba([text])[0]
+        classes = model.classes_
+        return [{"Signal": l, "Confidence": round(p, 4)} for l, p in zip(classes, probs) if p >= threshold]
+    else:
+        path = "valhalla/distilbart-mnli-12-3" if "DistilBART" in engine_choice else "facebook/bart-large-mnli"
+        model = load_transformer_model(path)
+        res = model(text, labels, multi_label=True)
+        return [{"Signal": l, "Confidence": round(s, 4)} for l, s in zip(res['labels'], res['scores']) if s >= threshold]
 
-default_text = (
-    "I've been reflecting on my career lately. I used to be very risk-averse, "
-    "but lately, I find myself excited by the challenge of building new things from scratch. "
-    "I'm becoming much more of a growth-oriented leader than I was a year ago."
-)
-
+# --- UI Sidebar ---
 with st.sidebar:
     st.header("Configuration")
-    model_choice = st.radio(
-        "Select Model Engine:",
-        (
-            "High Speed (Naive Bayes)", 
-            "High Accuracy (DistilBART)", 
-            "High Accuracy (BART-Large)"
-        )
-    )
-    
-    st.markdown("---")
-    labels_input = st.text_input(
-        "Analysis Labels", 
-        "self-confident, uncertain, growth-oriented, analytical, creative, skeptical, risk-averse"
-    )
+    app_mode = st.radio("Select Mode:", ("Interactive Mode", "JSON Mode"))
+    model_choice = st.radio("Select Model Engine:", ("High Speed (Naive Bayes)", "High Accuracy (DistilBART)", "High Accuracy (BART-Large)"))
+    labels_input = st.text_input("Analysis Labels", "self-confident, uncertain, growth-oriented, analytical, creative, skeptical, risk-averse")
     candidate_labels = [label.strip() for label in labels_input.split(",")]
     threshold = st.slider("Min Confidence Score", 0.0, 1.0, 0.2)
 
-# --- Main Input ---
-user_input = st.text_area("Conversation Input:", value=default_text, height=150)
-analyze_button = st.button("Analyze Identity Signals", type="primary")
+st.title(f"👤 Identity Evaluation: {app_mode}")
 
-# --- Execution Logic ---
-if analyze_button and user_input:
-    start_time = time.time()
-    
-    if model_choice == "High Speed (Naive Bayes)":
-        model = load_fast_model()
-        probs = model.predict_proba([user_input])[0]
-        classes = model.classes_
-        raw_res = {label: float(prob) for label, prob in zip(classes, probs)}
-        formatted_signals = [
-            {"Signal": label, "Confidence": round(prob, 4)}
-            for label, prob in raw_res.items() if prob >= threshold
-        ]
-    else:
-        # Determine which HF model to load
-        hf_model_path = "valhalla/distilbart-mnli-12-3" if model_choice == "High Accuracy (DistilBART)" else "facebook/bart-large-mnli"
+# --- INTERACTIVE MODE ---
+if app_mode == "Interactive Mode":
+    user_input = st.text_area("Conversation Input:", value="I'm feeling much more of a growth-oriented leader than I was a year ago.", height=150)
+    if st.button("Analyze Identity Signals", type="primary"):
+        start = time.time()
+        signals = run_inference(user_input, model_choice, candidate_labels, threshold)
+        latency = (time.time() - start) * 1000
         
-        with st.spinner(f"Running {model_choice}..."):
-            model = load_transformer_model(hf_model_path)
-            res = model(user_input, candidate_labels, multi_label=True)
-            raw_res = res
-            formatted_signals = [
-                {"Signal": label, "Confidence": round(score, 4)}
-                for label, score in zip(res['labels'], res['scores']) if score >= threshold
-            ]
-    
-    latency_ms = (time.time() - start_time) * 1000
-    st.session_state['eval_result'] = {
-        "signals": formatted_signals,
-        "raw": raw_res,
-        "latency": latency_ms,
-        "engine": model_choice
-    }
+        st.metric("Latency", f"{latency:.2f} ms")
+        if signals:
+            df = pd.DataFrame(signals).sort_values("Confidence", ascending=True)
+            st.plotly_chart(px.bar(df, x="Confidence", y="Signal", orientation='h', color="Confidence"), use_container_width=True)
+            st.code(json.dumps(signals, indent=2), language="json")
+            st.download_button("Download JSON", json.dumps(signals), "identity.json")
 
-# --- Results & Visualization ---
-if 'eval_result' in st.session_state:
-    res = st.session_state['eval_result']
-    
-    st.metric("Inference Latency", f"{res['latency']:.2f} ms", 
-              delta="Target: <200ms", delta_color="normal" if res['latency'] < 200 else "inverse")
+# --- JSON MODE ---
+else:
+    uploaded_file = st.file_uploader("Upload StoryBot Chat Log (JSON)", type="json")
+    if uploaded_file is not None:
+        chat_log = json.load(uploaded_file)
+        results = []
+        
+        if st.button("Process Chat Log", type="primary"):
+            progress_bar = st.progress(0)
+            for i, entry in enumerate(chat_log):
+                # Only analyze User messages
+                if entry.get("sender") == "User":
+                    signals = run_inference(entry["text"], model_choice, candidate_labels, threshold)
+                    for s in signals:
+                        results.append({
+                            "Timestamp": f"{entry['metadata']['date']} {entry['metadata']['time']}",
+                            "Signal": s["Signal"],
+                            "Confidence": s["Confidence"],
+                            "User": entry['metadata']['userid']
+                        })
+                progress_bar.progress((i + 1) / len(chat_log))
 
-    if res['signals']:
-        df = pd.DataFrame(res['signals']).sort_values("Confidence", ascending=True)
-        fig = px.bar(df, x="Confidence", y="Signal", orientation='h', 
-                     color="Confidence", color_continuous_scale="Viridis", text_auto='.2f')
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.subheader("Data Export")
-        col1, col2 = st.columns([1, 1])
-        
-        json_output = json.dumps(res['raw'], indent=2)
-        
-        with col1:
-            st.markdown("**Visible JSON Output:**")
-            st.code(json_output, language="json")
-        
-        with col2:
-            st.markdown("**Download Options:**")
-            st.download_button(
-                label="📥 Download JSON File",
-                data=json_output,
-                file_name=f"identity_{int(time.time())}.json",
-                mime="application/json"
-            )
-            st.info(f"Engine used: {res['engine']}")
-    else:
-        st.warning("No signals met the confidence threshold.")
+            if results:
+                df_results = pd.DataFrame(results)
+                
+                # Time Series Visualization
+                st.subheader("Signal Evolution Over Time")
+                fig = px.line(df_results, x="Timestamp", y="Confidence", color="Signal", markers=True,
+                             title=f"Identity Evolution for User: {results[0]['User']}")
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Data Export
+                st.subheader("Session Analysis Output")
+                final_json = df_results.to_json(orient="records")
+                st.code(final_json, language="json")
+                st.download_button("Download Session Signals", final_json, "session_analysis.json")
+            else:
+                st.warning("No user signals detected in the log.")
