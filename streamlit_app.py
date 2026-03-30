@@ -20,7 +20,7 @@ def load_fast_model():
         ("I analyze the data strictly", "analytical"),
         ("I create art and stories", "creative"),
         ("I am skeptical of new claims", "skeptical"),
-        ("I avoid all risks", "risk-averse")..
+        ("I avoid all risks", "risk-averse"),
         ("I am not feeling good", "sad"),
         ("I am feeling great", "happy"),
     ]
