@@ -132,14 +132,6 @@ if 'eval_result' in st.session_state:
             st.info(f"Engine used: {res['engine']}")
     else:
         st.warning("No signals met the confidence threshold.")import streamlit as st
-import pandas as pd
-import plotly.express as px
-import json
-import time
-from transformers import pipeline
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.pipeline import Pipeline
 
 # --- Page Configuration ---
 st.set_page_config(page_title="Identity Evaluation Suite", layout="wide")
