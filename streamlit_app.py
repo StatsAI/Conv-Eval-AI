@@ -57,7 +57,9 @@ st.title(f"👤 Identity Evaluation: {app_mode}")
 
 # --- INTERACTIVE MODE ---
 if app_mode == "Interactive Mode":
-    user_input = st.text_area("Conversation Input:", value="I'm feeling much more of a growth-oriented leader than I was a year ago.", height=150)
+    user_input = st.text_area("Conversation Input:", 
+                              value="I've been reflecting on my career lately. I used to be very risk-averse, but lately, I find myself excited by the challenge of building new things from scratch.", 
+                              height=150)
     if st.button("Analyze Identity Signals", type="primary"):
         start = time.time()
         signals = run_inference(user_input, model_choice, candidate_labels, threshold)
