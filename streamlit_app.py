@@ -2,6 +2,7 @@ import streamlit as st
 from transformers import pipeline
 import pandas as pd
 import plotly.express as px
+import json
 
 # --- Page Configuration ---
 st.set_page_config(page_title="Identity Signal Evaluator", layout="wide")
@@ -9,7 +10,6 @@ st.set_page_config(page_title="Identity Signal Evaluator", layout="wide")
 # --- Model Loading (Cached) ---
 @st.cache_resource
 def load_classifier():
-    # Loading the BART model for Zero-Shot Classification
     return pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 
 classifier = load_classifier()
@@ -18,31 +18,32 @@ classifier = load_classifier()
 st.title("👤 Identity & Belief Evaluation")
 st.markdown("""
 This tool evaluates conversational data to identify evolving user beliefs and self-perceptions. 
-Enter a user message below to see how the system extracts **Identity Signals**.
 """)
+
+# --- Default Text ---
+default_text = (
+    "I've been reflecting on my career lately. I used to be very risk-averse, "
+    "but lately, I find myself excited by the challenge of building new things from scratch. "
+    "I'm becoming much more of a growth-oriented leader than I was a year ago."
+)
 
 with st.sidebar:
     st.header("Settings")
-    # Allow teams to define what "labels" they are looking for
     labels_input = st.text_input(
         "Analysis Labels (comma separated)", 
-        "self-confident, uncertain, growth-oriented, analytical, creative, skeptical"
+        "self-confident, uncertain, growth-oriented, analytical, creative, skeptical, risk-averse"
     )
     candidate_labels = [label.strip() for label in labels_input.split(",")]
-    
     threshold = st.slider("Confidence Threshold", 0.0, 1.0, 0.4)
 
 # --- Input Section ---
-col1, col2 = st.columns([2, 1])
+user_input = st.text_area(
+    "Conversation Input:", 
+    value=default_text,
+    height=150
+)
 
-with col1:
-    user_input = st.text_area(
-        "Conversation Input:", 
-        placeholder="Example: I've started taking more risks with my projects lately. I used to be afraid of failure, but now I see it as a learning step.",
-        height=200
-    )
-    
-    analyze_button = st.button("Analyze Identity Signals", type="primary")
+analyze_button = st.button("Analyze Identity Signals", type="primary")
 
 # --- Analysis Logic ---
 if analyze_button and user_input:
@@ -60,32 +61,37 @@ if analyze_button and user_input:
         if data:
             df = pd.DataFrame(data)
             
-            with col1:
-                st.subheader("Detected Signals")
-                st.dataframe(df, use_container_width=True)
+            # 1. Visualization below the button
+            st.subheader("Identity Signal Distribution")
+            fig = px.bar(
+                df, 
+                x="Confidence", 
+                y="Signal", 
+                orientation='h',
+                color="Confidence",
+                color_continuous_scale="Viridis",
+                title="Consolidated Identity Profile"
+            )
+            fig.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig, use_container_width=True)
             
-            with col2:
-                st.subheader("Visual Distribution")
-                fig = px.bar(
-                    df, 
-                    x="Confidence", 
-                    y="Signal", 
-                    orientation='h',
-                    color="Confidence",
-                    color_continuous_scale="Viridis"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-            st.success("Analysis Complete. These signals can now be sent to Recommendation or StoryBot engines.")
+            # 2. Results Table
+            st.subheader("Extracted Signals Data")
+            st.dataframe(df, use_container_width=True)
+            
+            # 3. JSON Download
+            st.subheader("Developer Export")
+            json_string = json.dumps(result, indent=2)
+            st.download_button(
+                label="Download Analysis JSON",
+                file_name="identity_evaluation.json",
+                mime="application/json",
+                data=json_string,
+            )
+            
+            st.success("Analysis Complete.")
         else:
-            st.warning("No signals met the confidence threshold. Try adjusting the threshold in the sidebar.")
+            st.warning("No signals met the confidence threshold.")
 
 elif analyze_button and not user_input:
     st.error("Please enter some text to analyze.")
-
-# --- Metadata/Developer View ---
-with st.expander("View Raw JSON Output (For API Teams)"):
-    if 'result' in locals():
-        st.json(result)
-    else:
-        st.write("Run an analysis to see the JSON schema.")
