@@ -20,7 +20,9 @@ def load_fast_model():
         ("I analyze the data strictly", "analytical"),
         ("I create art and stories", "creative"),
         ("I am skeptical of new claims", "skeptical"),
-        ("I avoid all risks", "risk-averse")
+        ("I avoid all risks", "risk-averse")..
+        ("I am not feeling good", "sad"),
+        ("I am feeling great", "happy"),
     ]
     texts, labels = zip(*data)
     model = Pipeline([('tfidf', TfidfVectorizer()), ('clf', MultinomialNB())])
@@ -50,15 +52,17 @@ with st.sidebar:
     st.header("Configuration")
     app_mode = st.radio("Select Mode:", ("Interactive Mode", "JSON Mode"))
     model_choice = st.radio("Select Model Engine:", ("High Speed (Naive Bayes)", "High Accuracy (DistilBART)", "High Accuracy (BART-Large)"))
-    labels_input = st.text_input("Analysis Labels", "self-confident, uncertain, growth-oriented, analytical, creative, skeptical, risk-averse")
+    labels_input = st.text_input("Analysis Labels", "self-confident, uncertain, growth-oriented, analytical, creative, skeptical, risk-averse, happy, sad")
     candidate_labels = [label.strip() for label in labels_input.split(",")]
     threshold = st.slider("Min Confidence Score (Visual Filter Only)", 0.0, 1.0, 0.2)
 
 st.title(f"👤 Identity Evaluation: {app_mode}")
 
 # --- INTERACTIVE MODE ---
+default_text = "I was struggling with the async logic, but I stayed focused and figured it out. I feel much more confident in my technical abilities now."
+
 if app_mode == "Interactive Mode":
-    user_input = st.text_area("Conversation Input:", value="I am becoming much more of a growth-oriented leader.", height=150)
+    user_input = st.text_area("Conversation Input:", value=default_text, height=150)
     if st.button("Analyze Identity Signals", type="primary"):
         start = time.time()
         all_scores = run_full_inference(user_input, model_choice, candidate_labels)
@@ -73,7 +77,7 @@ if app_mode == "Interactive Mode":
 
 # --- JSON MODE ---
 else:
-    uploaded_file = st.file_uploader("Upload StoryBot Chat Log (JSON)", type="json")
+    uploaded_file = st.file_uploader("Upload StoryBot Chat Log (JSON) to receive updated JSON with Chat Scores", type="json")
     if uploaded_file is not None:
         input_log = json.load(uploaded_file)
         
