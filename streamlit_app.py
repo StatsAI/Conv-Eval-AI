@@ -3,44 +3,39 @@ import pandas as pd
 import plotly.express as px
 import json
 import time
+from transformers import pipeline
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 
 # --- Page Configuration ---
-st.set_page_config(page_title="High-Speed Identity API", layout="wide")
+st.set_page_config(page_title="Identity Evaluation Suite", layout="wide")
 
-# --- ultra-fast Model Training (Happens once on load) ---
+# --- Model 1: High-Speed (Linear) ---
 @st.cache_resource
 def load_fast_model():
-    # Synthetic training data to define "Identity Signals"
-    # In a production environment, you would load a pre-trained pickle file here.
+    # Synthetic training data for quick mapping
     data = [
-        ("I am confident in my skills and lead the team well", "self-confident"),
-        ("I am not sure if I can do this, I feel lost", "uncertain"),
-        ("I love learning new things and growing every day", "growth-oriented"),
-        ("I analyze every detail and look at the data", "analytical"),
-        ("I enjoy painting, writing, and creating new worlds", "creative"),
-        ("I don't believe the hype, I need proof first", "skeptical"),
-        ("I prefer to stay safe and avoid any big changes", "risk-averse"),
-        ("I am building a new career and evolving my mindset", "growth-oriented"),
-        ("The numbers don't add up, let's re-calculate", "analytical")
+        ("I am confident in my skills", "self-confident"),
+        ("I am unsure and lost", "uncertain"),
+        ("I love learning and growing", "growth-oriented"),
+        ("I analyze the data strictly", "analytical"),
+        ("I create art and stories", "creative"),
+        ("I am skeptical of new claims", "skeptical"),
+        ("I avoid all risks", "risk-averse")
     ]
     texts, labels = zip(*data)
-    
-    # Simple, high-speed ML Pipeline (TF-IDF + Naive Bayes)
-    model = Pipeline([
-        ('tfidf', TfidfVectorizer()),
-        ('clf', MultinomialNB())
-    ])
+    model = Pipeline([('tfidf', TfidfVectorizer()), ('clf', MultinomialNB())])
     model.fit(texts, labels)
     return model
 
-fast_model = load_fast_model()
+# --- Model 2: High-Accuracy (Transformer) ---
+@st.cache_resource
+def load_llm_model():
+    return pipeline("zero-shot-classification", model="valhalla/distilbart-mnli-12-3")
 
-# --- App UI ---
-st.title("⚡ Ultra-Fast Identity Evaluation")
-st.caption("Target Latency: < 200ms (Current Model: Naive Bayes)")
+# --- UI Setup ---
+st.title("👤 Identity & Belief Evaluation Suite")
 
 default_text = (
     "I've been reflecting on my career lately. I used to be very risk-averse, "
@@ -49,56 +44,88 @@ default_text = (
 )
 
 with st.sidebar:
-    st.header("Settings")
-    threshold = st.slider("Min Confidence Score", 0.0, 1.0, 0.15)
+    st.header("Configuration")
+    model_choice = st.radio(
+        "Select Model Engine:",
+        ("High Speed (Naive Bayes)", "High Accuracy (DistilBART)")
+    )
+    
+    st.markdown("---")
+    labels_input = st.text_input(
+        "Analysis Labels", 
+        "self-confident, uncertain, growth-oriented, analytical, creative, skeptical, risk-averse"
+    )
+    candidate_labels = [label.strip() for label in labels_input.split(",")]
+    threshold = st.slider("Min Confidence Score", 0.0, 1.0, 0.2)
 
-# --- Input Section ---
+# --- Main Input ---
 user_input = st.text_area("Conversation Input:", value=default_text, height=150)
 analyze_button = st.button("Analyze Identity Signals", type="primary")
 
-# --- High-Speed Inference ---
+# --- Execution Logic ---
 if analyze_button and user_input:
     start_time = time.time()
     
-    # Get probability distribution across all known classes
-    probs = fast_model.predict_proba([user_input])[0]
-    classes = fast_model.classes_
-    
-    # Calculate Latency
-    latency_ms = (time.time() - start_time) * 1000
-    
-    # Format results
-    signals = [
-        {"Signal": label, "Confidence": round(prob, 4)}
-        for label, prob in zip(classes, probs)
-        if prob >= threshold
-    ]
-    signals = sorted(signals, key=lambda x: x['Confidence'], reverse=True)
-    
-    # Store in session state
-    st.session_state['fast_res'] = {"signals": signals, "latency": latency_ms}
-
-# --- Results Display ---
-if 'fast_res' in st.session_state:
-    res = st.session_state['fast_res']
-    
-    st.metric("Inference Latency", f"{res['latency']:.2f} ms", delta="-180ms vs LLM")
-    
-    if res['signals']:
-        df = pd.DataFrame(res['signals'])
-        
-        # Chart
-        fig = px.bar(
-            df, x="Confidence", y="Signal", 
-            orientation='h', color="Confidence",
-            color_continuous_scale="Viridis",
-            text_auto='.2f'
-        )
-        fig.update_layout(yaxis={'categoryorder':'total ascending'}, height=400)
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Export
-        json_data = json.dumps(res, indent=2)
-        st.download_button("📥 Download JSON", data=json_data, file_name="fast_eval.json")
+    if model_choice == "High Speed (Naive Bayes)":
+        model = load_fast_model()
+        probs = model.predict_proba([user_input])[0]
+        classes = model.classes_
+        raw_res = {label: float(prob) for label, prob in zip(classes, probs)}
+        formatted_signals = [
+            {"Signal": label, "Confidence": round(prob, 4)}
+            for label, prob in raw_res.items() if prob >= threshold
+        ]
     else:
-        st.warning("No signals met the threshold.")
+        with st.spinner("Running Transformer Model..."):
+            model = load_llm_model()
+            res = model(user_input, candidate_labels, multi_label=True)
+            raw_res = res
+            formatted_signals = [
+                {"Signal": label, "Confidence": round(score, 4)}
+                for label, score in zip(res['labels'], res['scores']) if score >= threshold
+            ]
+    
+    latency_ms = (time.time() - start_time) * 1000
+    st.session_state['eval_result'] = {
+        "signals": formatted_signals,
+        "raw": raw_res,
+        "latency": latency_ms,
+        "engine": model_choice
+    }
+
+# --- Results & Visualization ---
+if 'eval_result' in st.session_state:
+    res = st.session_state['eval_result']
+    
+    # 1. Performance Metric
+    st.metric("Inference Latency", f"{res['latency']:.2f} ms", 
+              delta="Target: <200ms", delta_color="normal" if res['latency'] < 200 else "inverse")
+
+    if res['signals']:
+        # 2. Consolidated Chart
+        df = pd.DataFrame(res['signals']).sort_values("Confidence", ascending=True)
+        fig = px.bar(df, x="Confidence", y="Signal", orientation='h', 
+                     color="Confidence", color_continuous_scale="Viridis", text_auto='.2f')
+        st.plotly_chart(fig, use_container_width=True)
+
+        # 3. JSON Output Display & Download
+        st.subheader("Data Export")
+        col1, col2 = st.columns([1, 1])
+        
+        json_output = json.dumps(res['raw'], indent=2)
+        
+        with col1:
+            st.markdown("**Visible JSON Output:**")
+            st.code(json_output, language="json")
+        
+        with col2:
+            st.markdown("**Download Options:**")
+            st.download_button(
+                label="📥 Download JSON File",
+                data=json_output,
+                file_name=f"identity_{int(time.time())}.json",
+                mime="application/json"
+            )
+            st.info(f"Engine used: {res['engine']}")
+    else:
+        st.warning("No signals met the confidence threshold.")
