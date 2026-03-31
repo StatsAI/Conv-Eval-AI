@@ -5,6 +5,6 @@ Interactive mode: real-time intent classification
 JSON Mode: batch processing of user chat logs with an AI Agent 
 
 
-Check out the app! https://conv-eval-ai-6mcueubiainwmgputbm3va.streamlit.app/
+Check out the app! https://conv-eval-ai.streamlit.app/
 
 <img width="871" height="419" alt="image" src="https://github.com/user-attachments/assets/4257d2a2-0a59-4d08-ab89-d96c1ec34c6c" />
