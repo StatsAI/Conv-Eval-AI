@@ -56,7 +56,7 @@ with st.sidebar:
     candidate_labels = [label.strip() for label in labels_input.split(",")]
     threshold = st.slider("Min Confidence Score (Visual Filter Only)", 0.0, 1.0, 0.2)
 
-st.title(f"👤 Identity Evaluation: {app_mode}")
+st.title(f"👤 AI User Chat Scoring: {app_mode}")
 
 # --- INTERACTIVE MODE ---
 default_text = "I was struggling with the async logic, but I stayed focused and figured it out. I feel much more confident in my technical abilities now."
