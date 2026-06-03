@@ -54,7 +54,7 @@ with st.sidebar:
     model_choice = st.radio("Select Model Engine:", ("High Speed (Naive Bayes)", "High Accuracy (DistilBART)", "High Accuracy (BART-Large)"))
     labels_input = st.text_input("Analysis Labels", "self-confident, uncertain, growth-oriented, analytical, creative, skeptical, risk-averse, happy, sad")
     candidate_labels = [label.strip() for label in labels_input.split(",")]
-    threshold = st.slider("Min Confidence Score (Visual Filter Only)", 0.0, 1.0, 0.2)
+    threshold = st.slider("Min Confidence Score (Visual Filter Only)", 0.0, 1.0, 0.1)
 
 st.title(f"👤 AI User Chat Scoring: {app_mode}")
 
