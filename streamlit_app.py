@@ -61,7 +61,7 @@ st.title(f"👤 AI User Chat Scoring: {app_mode}")
 # --- INTERACTIVE MODE ---
 default_text = "I was struggling with the async logic, but I stayed focused and figured it out. I feel much more confident in my technical abilities now."
 
-if app_mode == "Interactive Mode":
+if app_mode == "Real-time Mode":
     user_input = st.text_area("Conversation Input:", value=default_text, height=150)
     if st.button("Analyze Identity Signals", type="primary"):
         start = time.time()
