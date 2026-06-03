@@ -50,7 +50,7 @@ def run_full_inference(text, engine_choice, labels):
 # --- UI Sidebar ---
 with st.sidebar:
     st.header("Configuration")
-    app_mode = st.radio("Select Mode:", ("Interactive Mode", "JSON Mode"))
+    app_mode = st.radio("Select Mode:", ("Real-time Mode", "Batch Mode"))
     model_choice = st.radio("Select Model Engine:", ("High Speed (Naive Bayes)", "High Accuracy (DistilBART)", "High Accuracy (BART-Large)"))
     labels_input = st.text_input("Analysis Labels", "self-confident, uncertain, growth-oriented, analytical, creative, skeptical, risk-averse, happy, sad")
     candidate_labels = [label.strip() for label in labels_input.split(",")]
